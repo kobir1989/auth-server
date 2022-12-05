@@ -2,6 +2,7 @@ const User = require("../models/user.schema");
 const asyncHandler = require("../helper/asyncHandler");
 const CustomError = require("../utils/customError");
 const mailHelper = require("../helper/mailHelper");
+const crypto = require("crypto");
 
 const cookieOptions = {
   httOnly: true,
@@ -81,7 +82,7 @@ module.exports.forgetPassword = asyncHandler(async (req, res) => {
 
   const resetToken = user.generateResetToken();
   await user.save({ validateBeforeSave: false });
-  console.log(user)
+  console.log(user);
 
   const resetUrl = `${req.protocol}://${req.get("host")}/api/auth/password/reset/${resetToken}`;
 
@@ -104,4 +105,45 @@ module.exports.forgetPassword = asyncHandler(async (req, res) => {
     await user.save({ validateBeforeSave: false });
     throw new CustomError(err.message || "Email sent failed", 500);
   }
+});
+
+/******************************************************************
+ * @RESET_PASSWORD
+ * @Routes http://localhost:5000//api/auth/password/reset
+ * @Description User will be able to reset password based on url token
+ * @parameters  token from url, password and confirm password
+ * @returns User object
+
+*******************************************************************/
+
+module.exports.resetPassword = asyncHandler(async (req, res) => {
+  const { resetToken } = req.params;
+  const { password, confirmPassword } = req.body;
+  if (!password || !confirmPassword) {
+    throw new CustomError("New Password and Confirm Password are required", 400);
+  }
+  if (password !== confirmPassword) {
+    throw new CustomError("Password did not match", 400);
+  }
+  const resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+  const user = await User.findOne({
+    forgetPasswordToken: resetPasswordToken,
+    forgetPasswordExpiry: { $gt: Date.now() },
+  });
+  if (!user) {
+    throw new CustomError("Ivalid user", 403);
+  }
+  user.password = password;
+  user.forgetPasswordExpiry = undefined;
+  user.forgetPasswordToken = undefined;
+  await user.save()
+  const token = user.getJwtToken();
+  user.password = undefined;
+
+  res.cookie("token", token, cookieOptions);
+  res.status(200).json({
+	success: true,
+	user,
+  })
+
 });
