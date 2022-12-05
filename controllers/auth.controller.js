@@ -1,6 +1,7 @@
 const User = require("../models/user.schema");
 const asyncHandler = require("../helper/asyncHandler");
 const CustomError = require("../utils/customError");
+const mailHelper = require("../helper/mailHelper");
 
 const cookieOptions = {
   httOnly: true,
@@ -39,7 +40,7 @@ module.exports.login = asyncHandler(async (req, res) => {
   if (!email || !password) {
     throw new CustomError("Email and Password are required", 400);
   }
-  
+
   const user = await User.findOne({ email }).select("+password");
   if (!user) {
     throw new CustomError("Invalid Credintials", 403);
@@ -58,4 +59,49 @@ module.exports.login = asyncHandler(async (req, res) => {
     user,
     token,
   });
+});
+
+/******************************************************
+ * @FORGOT_PASSWORD
+ * @route http://localhost:5000/api/auth/password/forgot
+ * @description User will submit email and will generate a token
+ * @parameters  email
+ * @returns success message - email send
+ ******************************************************/
+
+module.exports.forgetPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    throw new CustomError("Please submit user Email address", 400);
+  }
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw new CustomError("User does not exists");
+  }
+
+  const resetToken = user.generateResetToken();
+  await user.save({ validateBeforeSave: false });
+  console.log(user)
+
+  const resetUrl = `${req.protocol}://${req.get("host")}/api/auth/password/reset/${resetToken}`;
+
+  const text = `Your Password reset Url is \n\n${resetUrl}\n\n`;
+  console.log(text);
+
+  try {
+    await mailHelper({
+      email: user.email,
+      subject: "Password reset email for website",
+      text: text,
+    });
+    res.status(200).json({
+      success: true,
+      message: `Email send to ${user.email}`,
+    });
+  } catch (err) {
+    user.forgetPasswordExpiry = undefined;
+    user.forgetPasswordToken = undefined;
+    await user.save({ validateBeforeSave: false });
+    throw new CustomError(err.message || "Email sent failed", 500);
+  }
 });

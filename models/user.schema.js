@@ -57,7 +57,7 @@ userSchema.methods = {
   },
 
   //Create forget password Token
-  generateForgetPasswordToken: function () {
+  generateResetToken: function () {
     const forgetToken = crypto.randomBytes(20).toString("hex");
 
     //Save to database with sha256 incrypton
