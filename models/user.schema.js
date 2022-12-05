@@ -1,5 +1,4 @@
 const { Schema, model } = require("mongoose");
-const authRole = require("../utils/authRoles");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const config = require("../config/index");
@@ -26,8 +25,7 @@ const userSchema = new Schema(
     },
     role: {
       type: String,
-      enum: Object.values(authRole),
-      default: authRole.USER,
+      default: "User",
     },
     forgetPasswordToken: String,
     forgetPasswordExpiry: Date,
@@ -53,8 +51,8 @@ userSchema.methods = {
 
   //Create JWT token method
   getJwtToken: function () {
-    return jwt.sign({ _id: this._id, role: this.role }, config.JWT_SECRET, {
-      expiresIn: process.JWT_EXPIRE,
+    return jwt.sign({ _id: this._id, role: this.role }, config.JWT_SEC, {
+      expiresIn: "72h",
     });
   },
 
