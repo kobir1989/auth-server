@@ -3,11 +3,18 @@ const asyncHandler = require("../helper/asyncHandler");
 const CustomError = require("../utils/customError");
 const mailHelper = require("../helper/mailHelper");
 const crypto = require("crypto");
+const cookieOptions = require("../utils/cookieOption")
 
-const cookieOptions = {
-  httOnly: true,
-  expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-};
+
+
+/******************************************************************
+ * @SIGNUP
+ * @Routes http://localhost:5000//api/auth/signup
+ * @Description User will be able to create new user account
+ * @parameters name, password, confirm password
+ * @returns User object
+
+*******************************************************************/
 
 module.exports.signup = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
@@ -35,6 +42,15 @@ module.exports.signup = asyncHandler(async (req, res) => {
     user,
   });
 });
+
+/******************************************************************
+ * @LOGIN
+ * @Routes http://localhost:5000//api/auth/login
+ * @Description User will be able to login based on valid email and password
+ * @parameters email, password
+ * @returns User object, token with cookie
+
+*******************************************************************/
 
 module.exports.login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
@@ -131,19 +147,72 @@ module.exports.resetPassword = asyncHandler(async (req, res) => {
     forgetPasswordExpiry: { $gt: Date.now() },
   });
   if (!user) {
-    throw new CustomError("Ivalid user", 403);
+    throw new CustomError("Invalid user", 403);
   }
   user.password = password;
   user.forgetPasswordExpiry = undefined;
   user.forgetPasswordToken = undefined;
-  await user.save()
+  await user.save();
   const token = user.getJwtToken();
   user.password = undefined;
 
   res.cookie("token", token, cookieOptions);
   res.status(200).json({
-	success: true,
-	user,
-  })
+    success: true,
+    user,
+  });
+});
 
+/******************************************************************
+ * @CHANGE_PASSWROD
+ * @Routes http://localhost:5000//api/auth/change/password
+ * @Description User will be able to change password based on token
+ * @parameters  _id from url, old password and  new password, confirm password
+ * @returns User object
+
+*******************************************************************/
+module.exports.changePassword = asyncHandler(async (req, res) => {
+  const { password, newPassword, confirmNewPassword } = req.body;
+  console.log(newPassword, confirmNewPassword);
+  const { _id } = req.params;
+  if (!password || !newPassword || !confirmNewPassword) {
+    throw new CustomError("Password and Confirm Password are required", 400);
+  }
+  if (newPassword !== confirmNewPassword) {
+    throw new CustomError("Password did not match", 400);
+  }
+  const user = await User.findById({ _id }).select("+password");
+  if (!user) {
+    throw new CustomError("User not found", 400);
+  }
+
+  const checkPassword = await user.comparePassword(password);
+  if (!checkPassword) {
+    throw new CustomError("Invalid Credential", 403);
+  }
+  user.password = newPassword;
+  await user.save();
+  user.password = undefined;
+  user.forgetPasswordExpiry = undefined;
+  user.forgetPasswordToken = undefined;
+  const token = user.getJwtToken();
+  res.cookie("token", token, cookieOptions);
+  res.status(200).json({
+    success: true,
+    user,
+  });
+});
+
+/******************************************************************
+ * @LOGOUT
+ * @Routes http://localhost:5000//api/auth/logout
+ * @Description User will be able to logout by hiting this route
+ * @parameters  token from url, password and confirm password
+ * @returns User object
+
+*******************************************************************/
+
+module.exports.logout = asyncHandler(async (_req, res) => {
+  res.cookie("token", null, { expires: new Date(Date.now()), httpOnly: true });
+  res.status(200).json({ success: true, message: "Logged out successfully"});
 });
