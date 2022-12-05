@@ -4,6 +4,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const authRoute = require("./routes/auth.routes")
+const morgan = require("morgan");
 
 app.use(
   cors({
@@ -12,6 +13,7 @@ app.use(
   })
 );
 
+app.use(morgan("tiny"))
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());

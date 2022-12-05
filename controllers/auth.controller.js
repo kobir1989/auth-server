@@ -33,3 +33,29 @@ module.exports.signup = asyncHandler(async (req, res) => {
     user,
   });
 });
+
+module.exports.login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    throw new CustomError("Email and Password are required", 400);
+  }
+  
+  const user = await User.findOne({ email }).select("+password");
+  if (!user) {
+    throw new CustomError("Invalid Credintials", 403);
+  }
+
+  const isPasswordMatch = await user.comparePassword(password);
+  if (!isPasswordMatch) {
+    throw new CustomError("Invalid Credintials", 403);
+  }
+
+  user.password = undefined;
+  const token = user.getJwtToken();
+  res.cookie("token", token, cookieOptions);
+  res.status(200).json({
+    success: true,
+    user,
+    token,
+  });
+});
